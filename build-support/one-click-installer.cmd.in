@@ -1,0 +1,35 @@
+@echo off
+setlocal EnableExtensions
+title Weather Ticker Installer
+set "WT_SELF=%~f0"
+set "WT_APPDIR=%LOCALAPPDATA%\ThreeSourceWeatherTicker\App"
+set "WT_PAYLOAD_SHA256=__PAYLOAD_SHA256__"
+
+echo.
+echo   WEATHER TICKER INSTALLER
+echo   ------------------------
+echo   Installing for this Windows account. No administrator access is needed.
+echo.
+
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $self=$env:WT_SELF; $app=$env:WT_APPDIR; $expected=$env:WT_PAYLOAD_SHA256; $marker='::--WEATHER-TICKER-PAYLOAD--'; $content=[IO.File]::ReadAllText($self); $index=$content.LastIndexOf($marker,[StringComparison]::Ordinal); if($index -lt 0){throw 'The installer payload is missing.'}; $base64=$content.Substring($index+$marker.Length) -replace '\s',''; $bytes=[Convert]::FromBase64String($base64); $temp=Join-Path ([IO.Path]::GetTempPath()) ('WeatherTicker-'+[Guid]::NewGuid().ToString('N')+'.zip'); try {[IO.File]::WriteAllBytes($temp,$bytes); $actual=(Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant(); if($actual -ne $expected){throw 'The installer integrity check failed. Please download a fresh copy.'}; New-Item -ItemType Directory -Path $app -Force | Out-Null; Expand-Archive -LiteralPath $temp -DestinationPath $app -Force; $desktop=[Environment]::GetFolderPath('Desktop'); $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $desktop 'Weather Ticker.lnk')); $shortcut.TargetPath=(Join-Path $app 'Weather Ticker.cmd'); $shortcut.WorkingDirectory=$app; $shortcut.Description='NOAA, Weather Underground, and AccuWeather desktop ticker'; $shortcut.Save(); Start-Process -FilePath (Join-Path $app 'Weather Ticker.cmd')} finally {if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Force}; if($null -ne $bytes){[Array]::Clear($bytes,0,$bytes.Length)}}"
+
+if errorlevel 1 goto :install_failed
+
+echo.
+echo   Done! Weather Ticker is open and its shortcut is on the Desktop.
+echo   Bassfield, Mississippi 39421 is already selected.
+echo.
+echo   This window will close automatically.
+timeout /t 4 /nobreak >nul
+exit /b 0
+
+:install_failed
+echo.
+echo   Installation could not be completed.
+echo   Nothing requires administrator access. Please send Taylor a photo of
+echo   the error above so the package can be checked.
+echo.
+pause
+exit /b 1
+
+::--WEATHER-TICKER-PAYLOAD--

@@ -1,0 +1,52 @@
+WEATHER TICKER - START HERE
+===========================
+
+The one-click handoff ZIP contains one file:
+
+  1. Open "Weather-Ticker-One-Click-Installer.zip".
+  2. Double-click "1 - DOUBLE-CLICK TO INSTALL WEATHER TICKER.cmd".
+
+That installer is self-contained, so it can run directly from the ZIP. If your
+Windows setup refuses to run files from a ZIP, choose Extract All and then
+double-click the same installer. If Windows shows a security prompt, continue
+only when this copy came directly from Taylor.
+
+The installer needs no administrator access. It puts a Weather Ticker shortcut
+on your Desktop and opens the ticker. Re-running it safely updates the app files
+without replacing your saved settings, location roster, or optional API keys.
+Bassfield,
+Mississippi 39421 is already selected. NOAA weather will work immediately.
+
+The buttons
+-----------
+Refresh          Get the newest reading now.
+Location list    Pick the GPS point you want to view.
+NOAA             Open the official NOAA/NWS page for that point.
+WU               Open Weather Underground.
+AccuWeather      Open AccuWeather.
+My locations     Open your location and spotter list in Excel.
+Reload list      Use this after saving and closing the Excel location list.
+Save to Excel    Add the current source-labeled snapshot to an Excel-ready log.
+Setup            Optional keys, units, and refresh timing. You can ignore this.
+On top           Choose whether the ticker stays over other windows.
+Exit             Close it completely.
+
+You do NOT need an account or API key to start. Weather Underground and
+AccuWeather can always be opened with their buttons. Their readings can also
+be placed directly in the moving ticker later if their optional API keys are
+entered once in Setup.
+
+If you want to add GPS points
+-----------------------------
+1. Click My locations.
+2. Excel opens a simple row for each location or spotter.
+3. Add or change rows. Keep Enabled set to true for points you want shown.
+4. Save and close Excel.
+5. Click Reload list in the ticker.
+
+Latitude and longitude use ordinary decimal GPS coordinates. ElevationFeet is
+for your surveyed elevation. The ticker clearly labels that value as a local
+survey elevation; it never mixes it into NOAA, Weather Underground, or
+AccuWeather measurements.
+
+Nothing runs after you click Exit. There are no ads, analytics, or telemetry.
