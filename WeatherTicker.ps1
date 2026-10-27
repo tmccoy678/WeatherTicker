@@ -1,4 +1,4 @@
-a#Requires -Version 5.1
+#Requires -Version 5.1
 
 param(
     [switch]$Configure,
@@ -15,7 +15,7 @@ Add-Type -AssemblyName System.Security
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 
 $script:AppName = "Three-Source Weather Ticker"
-$script:AppVersion = "1.0.0"
+$script:AppVersion = "1.0.1"
 $script:DataDirectory = Join-Path $env:LOCALAPPDATA "ThreeSourceWeatherTicker"
 $script:SettingsPath = Join-Path $script:DataDirectory "settings.json"
 $script:SecretsPath = Join-Path $script:DataDirectory "secrets.json"
@@ -670,7 +670,10 @@ function Get-NoaaSegment {
         throw "NOAA did not return forecast or observation links for this point."
     }
 
-    $forecast = Invoke-ApprovedJsonRequest $forecastUrl $headers $userAgent
+    $forecastUnits = if ($Settings.Units -eq "metric") { "si" } else { "us" }
+    $forecastSeparator = if ($forecastUrl.Contains("?")) { "&" } else { "?" }
+    $forecastRequestUrl = "$forecastUrl${forecastSeparator}units=$forecastUnits"
+    $forecast = Invoke-ApprovedJsonRequest $forecastRequestUrl $headers $userAgent
     $stations = Invoke-ApprovedJsonRequest $stationsUrl $headers $userAgent
     $stationFeatures = @(Get-PropertyValue $stations "features" @())
     if ($stationFeatures.Count -eq 0) {
@@ -710,7 +713,7 @@ function Get-NoaaSegment {
 
     $windText = "$(Convert-DegreesToCardinal $windDirection) $(Format-Number $windSpeed 0) $windSuffix"
     if ($null -ne $windGustMps) {
-        $windText += " gust $(Format-Number $windGust 0)"
+        $windText += " gust $(Format-Number $windGust 0) $windSuffix"
     }
 
     $periods = @(Get-NestedValue $forecast @("properties", "periods") @())
@@ -765,7 +768,8 @@ function Get-WuSegment {
         $temperatureSuffix = "F"
         $windSuffix = "mph"
         $pressureSuffix = "inHg"
-        $precipSuffix = "in"
+        $precipRateSuffix = "in/hr"
+        $precipTotalSuffix = "in"
     }
     else {
         $unitCode = "m"
@@ -773,7 +777,8 @@ function Get-WuSegment {
         $temperatureSuffix = "C"
         $windSuffix = "km/h"
         $pressureSuffix = "hPa"
-        $precipSuffix = "mm"
+        $precipRateSuffix = "mm/hr"
+        $precipTotalSuffix = "mm"
     }
 
     $encodedStation = [Uri]::EscapeDataString($stationId)
@@ -796,7 +801,7 @@ function Get-WuSegment {
     $precipRate = Get-PropertyValue $measurement "precipRate" $null
     $precipTotal = Get-PropertyValue $measurement "precipTotal" $null
 
-    return "Weather Underground PWS [$stationId]: $(Format-Number $temperature 1)$temperatureSuffix; RH $(Format-Number $humidity 0)%; wind $(Convert-DegreesToCardinal $windDirection) $(Format-Number $windSpeed 1) $windSuffix gust $(Format-Number $windGust 1); pressure $(Format-Number $pressure 2) $pressureSuffix; precip rate $(Format-Number $precipRate 2) $precipSuffix; daily precip $(Format-Number $precipTotal 2) $precipSuffix"
+    return "Weather Underground PWS [$stationId]: $(Format-Number $temperature 1)$temperatureSuffix; RH $(Format-Number $humidity 0)%; wind $(Convert-DegreesToCardinal $windDirection) $(Format-Number $windSpeed 1) $windSuffix gust $(Format-Number $windGust 1) $windSuffix; pressure $(Format-Number $pressure 2) $pressureSuffix; precip rate $(Format-Number $precipRate 2) $precipRateSuffix; daily precip $(Format-Number $precipTotal 2) $precipTotalSuffix"
 }
 
 function Get-AccuWeatherSegment {
@@ -850,7 +855,7 @@ function Get-AccuWeatherSegment {
     $pressure = Get-NestedValue $current @("Pressure", $unitName, "Value") $null
     $precip = Get-NestedValue $current @("Precip1hr", $unitName, "Value") $null
 
-    return "AccuWeather: $condition; $(Format-Number $temperature 1)$temperatureSuffix; feels $(Format-Number $realFeel 1)$temperatureSuffix; RH $(Format-Number $humidity 0)%; wind $windDirection $(Format-Number $windSpeed 1) $windSuffix gust $(Format-Number $windGust 1); pressure $(Format-Number $pressure 2) $pressureSuffix; precip 1h $(Format-Number $precip 2) $precipSuffix"
+    return "AccuWeather: $condition; $(Format-Number $temperature 1)$temperatureSuffix; feels $(Format-Number $realFeel 1)$temperatureSuffix; RH $(Format-Number $humidity 0)%; wind $windDirection $(Format-Number $windSpeed 1) $windSuffix gust $(Format-Number $windGust 1) $windSuffix; pressure $(Format-Number $pressure 2) $pressureSuffix; precip 1h $(Format-Number $precip 2) $precipSuffix"
 }
 
 function Get-TickerResult {
