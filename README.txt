@@ -72,7 +72,7 @@ Use
 - Reload list: validate the roster and reload enabled locations.
 - Save to Excel: append the visible, source-labeled snapshot to
   Documents\Weather Ticker\weather-snapshots.csv for Excel.
-- Settings: change the location, update interval, links, station, or keys.
+- Setup: change the location, update interval, links, station, or keys.
 - On top: toggle whether the ticker stays above other windows.
 - Exit: close the ticker. It does not continue running after Exit.
 
@@ -99,15 +99,21 @@ roster. The columns are:
   AccuWeatherLocationKey
   AccuWeatherPageUrl
 
-Use decimal GPS coordinates. Up to six decimal places are retained in API
-requests. ElevationFeet is locally supplied survey metadata; the app labels it
-as "survey elev" and never presents it as a provider measurement or uses it to
-alter official observations.
+Use decimal GPS coordinates. The roster and exported snapshots retain the
+coordinates you enter. NOAA API requests use up to four decimal places, as
+required by the NWS API. ElevationFeet is locally supplied survey metadata;
+the app labels it as "survey elev" and never presents it as a provider
+measurement or uses it to alter official observations.
 
-The ticker is a source-labeled situational display, not an official warning
-dissemination or spotter communications system. NWS alerts remain visibly
-identified as NWS alerts. A future communications module should be designed
-and tested separately if needed.
+Each distinct GPS row owns its optional Weather Underground and AccuWeather
+fields. Leave those fields blank to keep the row unlinked; the ticker shows
+that provider's setup prompt. The row matching the Setup fallback coordinates
+can use the provider identifiers saved in Setup.
+
+Use the source-labeled ticker for situational awareness. Receive warnings
+through NWS and local emergency-alert channels, and use established local
+channels for spotter communication. NWS alerts remain visibly identified as
+NWS alerts.
 
 Move to another PC
 ------------------

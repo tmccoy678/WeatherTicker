@@ -14,8 +14,8 @@ only when this copy came directly from Taylor.
 The installer needs no administrator access. It puts a Weather Ticker shortcut
 on your Desktop and opens the ticker. Re-running it safely updates the app files
 without replacing your saved settings, location roster, or optional API keys.
-Bassfield,
-Mississippi 39421 is already selected. NOAA weather will work immediately.
+Bassfield, Mississippi 39421 is already selected. NOAA weather will work
+immediately.
 
 The buttons
 -----------
@@ -49,4 +49,9 @@ for your surveyed elevation. The ticker clearly labels that value as a local
 survey elevation; it never mixes it into NOAA, Weather Underground, or
 AccuWeather measurements.
 
+Each row can have its own WU and AccuWeather identifiers and page links. Leave
+them blank when that location has no matching provider record; the ticker will
+show the provider's setup prompt for that row.
+
 Nothing runs after you click Exit. There are no ads, analytics, or telemetry.
+For safety-critical decisions, follow NWS and local emergency-alert channels.

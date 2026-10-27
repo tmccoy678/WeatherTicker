@@ -15,7 +15,7 @@ ticker behavior._
 
 ## Download and install
 
-[**Download the latest one-click installer**](https://github.com/tmccoy678/three-source-weather-ticker/releases/latest/download/Weather-Ticker-One-Click-Installer.zip)
+[**Download the latest one-click installer**](https://github.com/tmccoy678/WeatherTicker/releases/latest/download/Weather-Ticker-One-Click-Installer.zip)
 
 1. Open the downloaded ZIP.
 2. Double-click **`1 - DOUBLE-CLICK TO INSTALL WEATHER TICKER.cmd`**.
@@ -41,6 +41,7 @@ verification.
   while refreshing only the selected point.
 - Appends source-labeled snapshots to an Excel-ready CSV file.
 - Can remain above other windows and refresh every 2–120 minutes.
+- Keeps the window responsive while weather providers answer or time out.
 
 ## Privacy and network boundary
 
@@ -77,11 +78,19 @@ The editable roster is stored at:
 Use **My locations** to open it in Excel, save and close Excel, and then choose
 **Reload list**. Supported fields include GPS coordinates, surveyed elevation,
 spotter name, call sign, Weather Underground station/page, and AccuWeather
-location/page.
+location/page. NOAA API requests use up to four decimal places, as required by
+the [NWS API](https://weather-gov.github.io/api/general-faqs); the roster and
+exported snapshots retain the coordinates you entered.
+
+Each distinct GPS row owns its optional Weather Underground and AccuWeather
+fields. Blank provider fields leave the row unlinked and the ticker shows that
+provider's setup prompt. The row matching the Setup fallback coordinates can
+use the provider identifiers saved in Setup.
 
 Surveyed elevations are labeled as local metadata and are never represented as
-provider measurements. This ticker is a situational display, not an official
-warning-dissemination or spotter-communications system.
+provider measurements. Use this source-labeled display for situational
+awareness, and receive warnings through NWS and local emergency-alert channels.
+Use established local channels for spotter communication.
 
 ## Updating
 

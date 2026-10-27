@@ -15,7 +15,7 @@ Add-Type -AssemblyName System.Security
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 
 $script:AppName = "Three-Source Weather Ticker"
-$script:AppVersion = "1.0.1"
+$script:AppVersion = "1.0.2"
 $script:DataDirectory = Join-Path $env:LOCALAPPDATA "ThreeSourceWeatherTicker"
 $script:SettingsPath = Join-Path $script:DataDirectory "settings.json"
 $script:SecretsPath = Join-Path $script:DataDirectory "secrets.json"
@@ -127,7 +127,7 @@ function Get-Settings {
     }
     catch {
         [System.Windows.Forms.MessageBox]::Show(
-            "The saved settings could not be read. Setup will open again.`r`n`r`n$($_.Exception.Message)",
+            "The saved settings could not be read. The default settings are active; open Setup to review or save them.`r`n`r`n$($_.Exception.Message)",
             $script:AppName,
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Warning
@@ -340,20 +340,22 @@ function ConvertTo-LocationSettings {
         $displayName += " (" + ($labelDetails -join "; ") + ")"
     }
 
+    $locationLatitude = [double]$Location.Latitude
+    $locationLongitude = [double]$Location.Longitude
+    $isFallbackLocation = (
+        [Math]::Abs($locationLatitude - [double]$values.Latitude) -lt 0.0000005 -and
+        [Math]::Abs($locationLongitude - [double]$values.Longitude) -lt 0.0000005
+    )
+
     $values.DisplayName = $displayName
-    $values.Latitude = [double]$Location.Latitude
-    $values.Longitude = [double]$Location.Longitude
-    if (-not [string]::IsNullOrWhiteSpace([string]$Location.WuStationId)) {
-        $values.WuStationId = [string]$Location.WuStationId
-    }
-    if (-not [string]::IsNullOrWhiteSpace([string]$Location.WuPageUrl)) {
-        $values.WuPageUrl = [string]$Location.WuPageUrl
-    }
-    if (-not [string]::IsNullOrWhiteSpace([string]$Location.AccuWeatherLocationKey)) {
-        $values.AccuWeatherLocationKey = [string]$Location.AccuWeatherLocationKey
-    }
-    if (-not [string]::IsNullOrWhiteSpace([string]$Location.AccuWeatherPageUrl)) {
-        $values.AccuWeatherPageUrl = [string]$Location.AccuWeatherPageUrl
+    $values.Latitude = $locationLatitude
+    $values.Longitude = $locationLongitude
+    foreach ($providerKey in @("WuStationId", "WuPageUrl", "AccuWeatherLocationKey", "AccuWeatherPageUrl")) {
+        $providerValue = [string](Get-PropertyValue $Location $providerKey "")
+        if ($isFallbackLocation -and [string]::IsNullOrWhiteSpace($providerValue)) {
+            continue
+        }
+        $values[$providerKey] = $providerValue
     }
     return [pscustomobject]$values
 }
@@ -654,8 +656,8 @@ function Convert-DegreesToCardinal {
 function Get-NoaaSegment {
     param([object]$Settings)
 
-    $lat = ([double]$Settings.Latitude).ToString("0.######", [Globalization.CultureInfo]::InvariantCulture)
-    $lon = ([double]$Settings.Longitude).ToString("0.######", [Globalization.CultureInfo]::InvariantCulture)
+    $lat = ([double]$Settings.Latitude).ToString("0.####", [Globalization.CultureInfo]::InvariantCulture)
+    $lon = ([double]$Settings.Longitude).ToString("0.####", [Globalization.CultureInfo]::InvariantCulture)
     $contact = [string]$Settings.NwsContact
     $userAgent = "$($script:AppName)/$($script:AppVersion)"
     if (-not [string]::IsNullOrWhiteSpace($contact)) {
@@ -915,6 +917,43 @@ function Get-TickerResult {
     }
 }
 
+function New-RefreshWorkerScript {
+    $workerFunctionNames = @(
+        "Get-PropertyValue",
+        "Get-NestedValue",
+        "Assert-AllowedApiUri",
+        "Invoke-ApprovedJsonRequest",
+        "Format-Number",
+        "Get-SafeErrorMessage",
+        "Convert-TemperatureFromCelsius",
+        "Convert-WindFromMetersPerSecond",
+        "Convert-PressureFromPascals",
+        "Convert-DegreesToCardinal",
+        "Get-NoaaSegment",
+        "Get-WuSegment",
+        "Get-AccuWeatherSegment",
+        "Get-TickerResult"
+    )
+
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.AppendLine('param([object]$Settings, [object]$Secrets, [string]$AppName, [string]$AppVersion, [string[]]$AllowedApiHosts)')
+    [void]$builder.AppendLine('Set-StrictMode -Version 2.0')
+    [void]$builder.AppendLine('$ErrorActionPreference = "Stop"')
+    [void]$builder.AppendLine('$script:AppName = $AppName')
+    [void]$builder.AppendLine('$script:AppVersion = $AppVersion')
+    [void]$builder.AppendLine('$script:AllowedApiHosts = $AllowedApiHosts')
+
+    foreach ($functionName in $workerFunctionNames) {
+        $command = Get-Command -Name $functionName -CommandType Function -ErrorAction Stop
+        [void]$builder.AppendLine("function $functionName {")
+        [void]$builder.AppendLine($command.Definition)
+        [void]$builder.AppendLine("}")
+    }
+
+    [void]$builder.AppendLine('Get-TickerResult -Settings $Settings -Secrets $Secrets')
+    return $builder.ToString()
+}
+
 function Export-TickerSnapshot {
     param(
         [object]$Result,
@@ -1031,6 +1070,10 @@ $script:ActiveLocation = $script:Locations[0]
 $script:ActiveSettings = ConvertTo-LocationSettings $script:CurrentSettings $script:ActiveLocation
 $script:LastTickerResult = $null
 $script:LoadingLocations = $false
+$script:RefreshPowerShell = $null
+$script:RefreshAsyncResult = $null
+$script:RefreshWorkerScript = New-RefreshWorkerScript
+$script:FormClosing = $false
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = $script:AppName
@@ -1141,6 +1184,9 @@ $scrollTimer.Add_Tick({
 $refreshTimer = New-Object System.Windows.Forms.Timer
 $refreshTimer.Interval = ([int]$script:CurrentSettings.RefreshMinutes * 60 * 1000)
 
+$refreshPollTimer = New-Object System.Windows.Forms.Timer
+$refreshPollTimer.Interval = 100
+
 function Update-LocationPicker {
     param([string]$PreferredName = "")
 
@@ -1201,25 +1247,86 @@ function Reload-LocationRoster {
     return $true
 }
 
-function Update-TickerDisplay {
-    $refreshTimer.Stop()
-    $statusLabel.Text = "Refreshing..."
-    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
-    [System.Windows.Forms.Application]::DoEvents()
+function Set-RefreshControlsEnabled {
+    param([bool]$Enabled)
+
+    @($refreshButton, $locationPicker, $reloadButton, $settingsButton) | ForEach-Object {
+        $_.Enabled = $Enabled
+    }
+}
+
+function Complete-TickerRefresh {
+    $refreshPollTimer.Stop()
     try {
-        $result = Get-TickerResult $script:ActiveSettings $script:CurrentSecrets
+        $output = @($script:RefreshPowerShell.EndInvoke($script:RefreshAsyncResult))
+        if ($output.Count -eq 0) {
+            throw "The weather refresh completed without a result."
+        }
+
+        $result = $output[-1]
         $script:LastTickerResult = $result
         $tickerLabel.Text = $result.Text
         $tickerLabel.Left = $tickerPanel.ClientSize.Width
         $statusLabel.Text = $result.Status
     }
+    catch {
+        $statusLabel.Text = "Refresh failed: $(Get-SafeErrorMessage $_)"
+    }
     finally {
+        if ($null -ne $script:RefreshPowerShell) {
+            $script:RefreshPowerShell.Dispose()
+        }
+        $script:RefreshPowerShell = $null
+        $script:RefreshAsyncResult = $null
         $form.Cursor = [System.Windows.Forms.Cursors]::Default
-        $refreshTimer.Interval = ([int]$script:CurrentSettings.RefreshMinutes * 60 * 1000)
+        Set-RefreshControlsEnabled $true
+        if (-not $script:FormClosing) {
+            $refreshTimer.Interval = ([int]$script:CurrentSettings.RefreshMinutes * 60 * 1000)
+            $refreshTimer.Start()
+        }
+    }
+}
+
+function Update-TickerDisplay {
+    if ($null -ne $script:RefreshAsyncResult) {
+        $statusLabel.Text = "A weather refresh is already in progress."
+        return
+    }
+
+    $refreshTimer.Stop()
+    $statusLabel.Text = "Refreshing weather sources..."
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    Set-RefreshControlsEnabled $false
+
+    $worker = [System.Management.Automation.PowerShell]::Create()
+    [void]$worker.AddScript($script:RefreshWorkerScript)
+    [void]$worker.AddArgument($script:ActiveSettings)
+    [void]$worker.AddArgument($script:CurrentSecrets)
+    [void]$worker.AddArgument($script:AppName)
+    [void]$worker.AddArgument($script:AppVersion)
+    [void]$worker.AddArgument([string[]]$script:AllowedApiHosts)
+    $script:RefreshPowerShell = $worker
+
+    try {
+        $script:RefreshAsyncResult = $worker.BeginInvoke()
+        $refreshPollTimer.Start()
+    }
+    catch {
+        $worker.Dispose()
+        $script:RefreshPowerShell = $null
+        $script:RefreshAsyncResult = $null
+        $form.Cursor = [System.Windows.Forms.Cursors]::Default
+        Set-RefreshControlsEnabled $true
+        $statusLabel.Text = "Refresh failed: $(Get-SafeErrorMessage $_)"
         $refreshTimer.Start()
     }
 }
 
+$refreshPollTimer.Add_Tick({
+    if ($null -ne $script:RefreshAsyncResult -and $script:RefreshAsyncResult.IsCompleted) {
+        Complete-TickerRefresh
+    }
+})
 $refreshTimer.Add_Tick({ Update-TickerDisplay })
 $refreshButton.Add_Click({ Update-TickerDisplay })
 $locationPicker.Add_SelectedIndexChanged({
@@ -1286,11 +1393,26 @@ $form.Add_Shown({
     }
     Update-TickerDisplay
 })
+$form.Add_FormClosing({
+    $script:FormClosing = $true
+    $refreshTimer.Stop()
+    $refreshPollTimer.Stop()
+    if ($null -ne $script:RefreshPowerShell -and $null -ne $script:RefreshAsyncResult) {
+        try {
+            [void]$script:RefreshPowerShell.BeginStop($null, $null)
+        }
+        catch {
+            # The refresh may have completed between the closing check and BeginStop.
+        }
+    }
+})
 $form.Add_FormClosed({
     $scrollTimer.Stop()
     $refreshTimer.Stop()
+    $refreshPollTimer.Stop()
     $scrollTimer.Dispose()
     $refreshTimer.Dispose()
+    $refreshPollTimer.Dispose()
 })
 
 [void][System.Windows.Forms.Application]::Run($form)
